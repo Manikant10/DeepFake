@@ -1,16 +1,15 @@
 import React, { useState } from 'react';
 import { Bell, Search, User, ChevronDown, Sun, Moon } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
-import { useSettingsStore } from '../stores/authStore';
 
 export const Header = ({ user }) => {
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
-  const { theme, updateSettings } = useSettingsStore();
+  const [theme, setTheme] = useState('light');
 
   const toggleTheme = () => {
     const newTheme = theme === 'dark' ? 'light' : 'dark';
-    updateSettings({ theme: newTheme });
+    setTheme(newTheme);
     document.documentElement.classList.toggle('dark');
   };
 
