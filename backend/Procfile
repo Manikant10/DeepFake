@@ -1,1 +1,1 @@
-web: python3.11 main_pro.py
+web: python3.11 main_basic.py
