@@ -1,1 +1,1 @@
-web: uvicorn main_pro.py:app --host 0.0.0.0 --port $PORT
+web: python3.11 main_pro.py
