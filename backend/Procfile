@@ -1,1 +1,1 @@
-web: python3.11 main_render.py
+web: python3.11 main_render.py  # Render-compatible version
