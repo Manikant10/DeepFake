@@ -16,6 +16,6 @@
     }
   ],
   "env": {
-    "REACT_APP_API_URL": "@backend_url"
+    "REACT_APP_API_URL": "https://deepfake-backend.onrender.com"
   }
 }

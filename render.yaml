@@ -1,0 +1,26 @@
+services:
+  - type: web
+    name: deepfake-backend
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: python main_pro.py
+    envVars:
+      - key: DATABASE_URL
+        value: ${DATABASE_URL}
+      - key: SECRET_KEY
+        value: ${SECRET_KEY}
+      - key: ENVIRONMENT
+        value: production
+      - key: ALLOWED_ORIGINS
+        value: ${ALLOWED_ORIGINS}
+
+  - type: web
+    name: deepfake-frontend
+    runtime: node
+    plan: free
+    buildCommand: npm run build
+    staticPublishPath: ./build
+    envVars:
+      - key: REACT_APP_API_URL
+        value: ${REACT_APP_API_URL}
