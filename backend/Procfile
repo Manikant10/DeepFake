@@ -1,1 +1,1 @@
-web: python3.11 main_fixed.py  # Fixed backend with all features
+web: python -m uvicorn main_fixed:app --host 0.0.0.0 --port $PORT
