@@ -1,1 +1,1 @@
-web: python -m uvicorn main_fixed:app --host 0.0.0.0 --port $PORT  # Updated: $(date)
+web: python main_render.py  # Working render-compatible backend
