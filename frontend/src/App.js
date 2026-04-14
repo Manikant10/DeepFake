@@ -7,10 +7,12 @@ import { LoginPage } from './pages/LoginPage';
 import { RegisterPage } from './pages/RegisterPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { AnalysisPage } from './pages/AnalysisPage';
+import { ProfessionalAnalysisPage } from './pages/ProfessionalAnalysisPage';
 import { HistoryPage } from './pages/HistoryPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { ProfilePage } from './pages/ProfilePage';
 import { ApiKeysPage } from './pages/ApiKeysPage';
+import { ProfessionalDashboardPage } from './pages/ProfessionalDashboardPage';
 import { LoadingSpinner } from './components/LoadingSpinner';
 
 function App() {
@@ -50,6 +52,8 @@ function App() {
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
         <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/analysis" element={<AnalysisPage />} />
+        <Route path="/professional-analysis" element={<ProfessionalAnalysisPage />} />
+        <Route path="/professional-dashboard" element={<ProfessionalDashboardPage />} />
         <Route path="/history" element={<HistoryPage />} />
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="/profile" element={<ProfilePage />} />

@@ -1,1 +1,1 @@
-web: python3.11 main_render.py  # Render-compatible version
+web: python3.11 main_advanced.py  # Advanced backend with all features
