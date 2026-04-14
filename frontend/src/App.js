@@ -13,6 +13,7 @@ import { SettingsPage } from './pages/SettingsPage';
 import { ProfilePage } from './pages/ProfilePage';
 import { ApiKeysPage } from './pages/ApiKeysPage';
 import { ProfessionalDashboardPage } from './pages/ProfessionalDashboardPage';
+import { AdminDashboard } from './pages/AdminDashboard';
 import { LoadingSpinner } from './components/LoadingSpinner';
 
 function App() {

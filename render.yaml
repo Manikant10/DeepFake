@@ -4,7 +4,7 @@ services:
     runtime: python
     plan: free
     buildCommand: pip install -r requirements.txt
-    startCommand: python main_pro.py
+    startCommand: python main_render.py
     envVars:
       - key: DATABASE_URL
         value: ${DATABASE_URL}
