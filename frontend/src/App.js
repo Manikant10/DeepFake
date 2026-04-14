@@ -55,6 +55,7 @@ function App() {
         <Route path="/analysis" element={<AnalysisPage />} />
         <Route path="/professional-analysis" element={<ProfessionalAnalysisPage />} />
         <Route path="/professional-dashboard" element={<ProfessionalDashboardPage />} />
+        <Route path="/admin" element={<AdminDashboard />} />
         <Route path="/history" element={<HistoryPage />} />
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="/profile" element={<ProfilePage />} />
