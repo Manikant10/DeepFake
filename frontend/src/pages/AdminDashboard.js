@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuthStore } from '../stores/authStore';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
+import { extractErrorMessageFromResponse, toSafeNumber } from '../utils/http';
 
 export const AdminDashboard = () => {
   const { user } = useAuthStore();
@@ -16,21 +17,32 @@ export const AdminDashboard = () => {
   const [recentActivity, setRecentActivity] = useState([]);
   const [systemMetrics, setSystemMetrics] = useState([]);
   const [selectedTab, setSelectedTab] = useState('overview');
+  const [connectionStatus, setConnectionStatus] = useState('live');
+  const [statusMessage, setStatusMessage] = useState('');
 
   // Real-time data fetching
   useEffect(() => {
     const fetchRealTimeData = async () => {
       try {
         const response = await fetch('/api/v1/stats');
+        if (!response.ok) {
+          const apiError = await extractErrorMessageFromResponse(
+            response,
+            `Unable to load dashboard stats (${response.status}).`
+          );
+          throw new Error(apiError);
+        }
         const data = await response.json();
         
         setRealTimeStats(prev => ({
-          totalAnalyses: data.total_analyses || prev.totalAnalyses + Math.floor(Math.random() * 3),
-          activeUsers: Math.floor(Math.random() * 50) + 10,
-          processingTime: data.average_processing_time || prev.processingTime + (Math.random() - 0.5) * 0.1,
-          successRate: data.total_analyses > 0 ? (data.successful_analyses / data.total_analyses * 100) : prev.successRate,
-          systemLoad: Math.floor(Math.random() * 30) + 20,
-          cacheHitRate: data.cache_hit_rate || prev.cacheHitRate + (Math.random() - 0.5) * 5
+          totalAnalyses: toSafeNumber(data.total_analyses, prev.totalAnalyses),
+          activeUsers: toSafeNumber(data.active_users, prev.activeUsers || Math.floor(Math.random() * 50) + 10),
+          processingTime: toSafeNumber(data.average_processing_time, prev.processingTime),
+          successRate: toSafeNumber(data.total_analyses, 0) > 0
+            ? (toSafeNumber(data.successful_analyses, 0) / toSafeNumber(data.total_analyses, 1)) * 100
+            : prev.successRate,
+          systemLoad: toSafeNumber(data.system_load, prev.systemLoad || Math.floor(Math.random() * 30) + 20),
+          cacheHitRate: toSafeNumber(data.cache_hit_rate, prev.cacheHitRate),
         }));
 
         // Add recent activity
@@ -45,13 +57,16 @@ export const AdminDashboard = () => {
         // Update system metrics
         const newMetric = {
           time: new Date().toLocaleTimeString(),
-          processingTime: data.average_processing_time || Math.random() * 2 + 0.5,
-          systemLoad: Math.floor(Math.random() * 30) + 20,
-          cacheHitRate: data.cache_hit_rate || Math.random() * 100
+          processingTime: toSafeNumber(data.average_processing_time, Math.random() * 2 + 0.5),
+          systemLoad: toSafeNumber(data.system_load, Math.floor(Math.random() * 30) + 20),
+          cacheHitRate: toSafeNumber(data.cache_hit_rate, Math.random() * 100),
         };
         setSystemMetrics(prev => [...prev.slice(-19), newMetric]);
+        setConnectionStatus('live');
+        setStatusMessage('');
       } catch (error) {
-        console.error('Failed to fetch real-time data:', error);
+        setConnectionStatus('degraded');
+        setStatusMessage(error.message || 'Live data is temporarily unavailable. Showing last known metrics.');
       }
     };
 
@@ -97,10 +112,19 @@ export const AdminDashboard = () => {
             <div className="flex justify-between items-center mb-8">
               <h1 className="text-4xl font-bold text-gray-900">Real-Time Admin Dashboard</h1>
               <div className="flex items-center space-x-2">
-                <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
-                <span className="text-sm text-gray-600">Live</span>
+                <div
+                  className={`w-3 h-3 rounded-full ${connectionStatus === 'live' ? 'bg-green-500 animate-pulse' : 'bg-yellow-500'}`}
+                ></div>
+                <span className="text-sm text-gray-600">
+                  {connectionStatus === 'live' ? 'Live' : 'Degraded'}
+                </span>
               </div>
             </div>
+            {statusMessage && (
+              <div className="mb-6 rounded-lg border border-yellow-200 bg-yellow-50 px-4 py-3 text-sm text-yellow-800">
+                {statusMessage}
+              </div>
+            )}
 
             {/* Real-time Stats Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">

@@ -3,8 +3,6 @@ import { motion } from 'framer-motion';
 import { Helmet } from 'react-helmet-async';
 import { useQuery } from 'react-query';
 import {
-  Shield,
-  TrendingUp,
   Clock,
   Users,
   FileImage,

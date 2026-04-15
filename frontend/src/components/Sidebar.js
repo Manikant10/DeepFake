@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
 import {
   Home,
   Upload,
@@ -8,12 +7,10 @@ import {
   Settings,
   User,
   Key,
-  BarChart3,
   Shield,
   Menu,
   X,
   LogOut,
-  HelpCircle,
 } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
 import toast from 'react-hot-toast';

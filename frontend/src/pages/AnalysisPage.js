@@ -1,22 +1,56 @@
 import React, { useState } from 'react';
 import { useAuthStore } from '../stores/authStore';
 import { LoadingSpinner } from '../components/LoadingSpinner';
+import toast from 'react-hot-toast';
+import { extractErrorMessageFromResponse, extractErrorMessage, toSafeNumber } from '../utils/http';
 
 export const AnalysisPage = () => {
   const { user } = useAuthStore();
   const [selectedFile, setSelectedFile] = useState(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [results, setResults] = useState(null);
+  const [errorMessage, setErrorMessage] = useState('');
+
+  const validateFile = (file) => {
+    if (!file) return 'Please select a file before running analysis.';
+    if (!file.type?.startsWith('image/') && !file.type?.startsWith('video/')) {
+      return 'Unsupported file format. Upload an image or video file.';
+    }
+
+    const maxSizeInBytes = file.type.startsWith('video/')
+      ? 100 * 1024 * 1024
+      : 50 * 1024 * 1024;
+
+    if (file.size > maxSizeInBytes) {
+      return `File is too large. Maximum size is ${file.type.startsWith('video/') ? '100MB' : '50MB'}.`;
+    }
+
+    return '';
+  };
 
   const handleFileSelect = (file) => {
+    const validationError = validateFile(file);
+    if (validationError) {
+      setSelectedFile(null);
+      setErrorMessage(validationError);
+      toast.error(validationError);
+      return;
+    }
     setSelectedFile(file);
     setResults(null);
+    setErrorMessage('');
   };
 
   const handleAnalyze = async () => {
-    if (!selectedFile) return;
+    const validationError = validateFile(selectedFile);
+    if (validationError) {
+      setErrorMessage(validationError);
+      toast.error(validationError);
+      return;
+    }
 
     setIsAnalyzing(true);
+    setErrorMessage('');
     
     try {
       const formData = new FormData();
@@ -26,11 +60,33 @@ export const AnalysisPage = () => {
         method: 'POST',
         body: formData,
       });
+
+      if (!response.ok) {
+        const apiError = await extractErrorMessageFromResponse(
+          response,
+          `Analysis request failed (${response.status}).`
+        );
+        throw new Error(apiError);
+      }
       
-      const result = await response.json();
-      setResults(result);
+      const payload = await response.json();
+      const result = payload?.result ?? payload;
+
+      if (typeof result?.is_fake !== 'boolean' || Number.isNaN(Number(result?.confidence))) {
+        throw new Error('The server returned an unexpected analysis response.');
+      }
+
+      setResults({
+        ...result,
+        confidence: toSafeNumber(result.confidence, 0),
+        model_used: payload?.model_info?.model_used || result?.model_used || 'Unknown',
+        processing_time: toSafeNumber(payload?.processing_time ?? result?.processing_time, 0),
+      });
+      toast.success('Analysis completed successfully.');
     } catch (error) {
-      console.error('Analysis error:', error);
+      const message = extractErrorMessage(error, 'Unable to analyze the file right now.');
+      setErrorMessage(message);
+      toast.error(message);
     } finally {
       setIsAnalyzing(false);
     }
@@ -59,6 +115,9 @@ export const AnalysisPage = () => {
                 <h2 className="text-xl font-semibold text-gray-900 mb-4">
                   Upload File
                 </h2>
+                <p className="text-sm text-gray-500 mb-4">
+                  Supported formats: images and videos. Max size: 50MB (images), 100MB (videos).
+                </p>
                 
                 <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
                   <input
@@ -85,6 +144,12 @@ export const AnalysisPage = () => {
                     {isAnalyzing ? 'Analyzing...' : 'Analyze File'}
                   </button>
                 )}
+
+                {errorMessage && (
+                  <div className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                    {errorMessage}
+                  </div>
+                )}
               </div>
 
               {/* Results Section */}
@@ -101,13 +166,16 @@ export const AnalysisPage = () => {
                       <h3 className={`text-lg font-semibold ${
                         results.is_fake ? 'text-red-800' : 'text-green-800'
                       }`}>
-                        {results.is_fake ? 'FAKE DETECTED' : 'REAL DETECTED'}
+                        {results.is_fake ? 'Potential Manipulation Detected' : 'Content Appears Authentic'}
                       </h3>
                       <p className="text-gray-700">
                         Confidence: {(results.confidence * 100).toFixed(1)}%
                       </p>
                       <p className="text-sm text-gray-600">
-                        Model: {results.model_used || 'RandomForest v1.0'}
+                        Model: {results.model_used}
+                      </p>
+                      <p className="text-sm text-gray-600">
+                        Processing time: {results.processing_time.toFixed(2)}s
                       </p>
                     </div>
                   </div>

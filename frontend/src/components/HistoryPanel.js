@@ -1,10 +1,14 @@
-import React, { useState, useEffect } from 'react';
-import { Trash2, Eye, Calendar, FileImage, FileVideo, CheckCircle, XCircle } from 'lucide-react';
+import React, { useState } from 'react';
+import { Trash2, Eye, Calendar, FileImage, FileVideo, CheckCircle, XCircle, X } from 'lucide-react';
 import axios from 'axios';
+import toast from 'react-hot-toast';
+import { extractErrorMessage } from '../utils/http';
 
 const HistoryPanel = ({ history, onHistoryUpdate }) => {
+  const API_BASE_URL = (process.env.REACT_APP_API_URL || '').replace(/\/$/, '');
   const [selectedResult, setSelectedResult] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
 
   const handleDelete = async (fileId) => {
     if (!window.confirm('Are you sure you want to delete this analysis result?')) {
@@ -12,24 +16,29 @@ const HistoryPanel = ({ history, onHistoryUpdate }) => {
     }
 
     setLoading(true);
+    setErrorMessage('');
     try {
-      await axios.delete(`http://localhost:8000/results/${fileId}`);
+      await axios.delete(`${API_BASE_URL}/results/${fileId}`);
       onHistoryUpdate(); // Refresh history
+      toast.success('Analysis result deleted.');
     } catch (error) {
-      console.error('Error deleting result:', error);
-      alert('Failed to delete result');
+      const message = extractErrorMessage(error, 'Failed to delete this analysis result.');
+      setErrorMessage(message);
+      toast.error(message);
     } finally {
       setLoading(false);
     }
   };
 
   const handleViewDetails = async (fileId) => {
+    setErrorMessage('');
     try {
-      const response = await axios.get(`http://localhost:8000/results/${fileId}`);
+      const response = await axios.get(`${API_BASE_URL}/results/${fileId}`);
       setSelectedResult(response.data);
     } catch (error) {
-      console.error('Error fetching result details:', error);
-      alert('Failed to fetch result details');
+      const message = extractErrorMessage(error, 'Failed to load analysis details.');
+      setErrorMessage(message);
+      toast.error(message);
     }
   };
 
@@ -59,6 +68,11 @@ const HistoryPanel = ({ history, onHistoryUpdate }) => {
           {history.length} {history.length === 1 ? 'analysis' : 'analyses'}
         </span>
       </div>
+      {errorMessage && (
+        <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {errorMessage}
+        </div>
+      )}
 
       {history.length === 0 ? (
         <div className="text-center py-8">
@@ -149,8 +163,9 @@ const HistoryPanel = ({ history, onHistoryUpdate }) => {
                 <button
                   onClick={() => setSelectedResult(null)}
                   className="text-gray-400 hover:text-gray-600"
+                  aria-label="Close details"
                 >
-                  <Trash2 className="w-5 h-5" />
+                  <X className="w-5 h-5" />
                 </button>
               </div>
 

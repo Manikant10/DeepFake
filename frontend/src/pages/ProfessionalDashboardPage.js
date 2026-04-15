@@ -1,7 +1,9 @@
-import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import React, { useState, useEffect, useMemo } from 'react';
+import { motion } from 'framer-motion';
 import { useAuthStore } from '../stores/authStore';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, BarChart, Bar } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import toast from 'react-hot-toast';
+import { extractErrorMessageFromResponse, extractErrorMessage, toSafeNumber } from '../utils/http';
 
 export const ProfessionalDashboardPage = () => {
   const { user } = useAuthStore();
@@ -16,27 +18,102 @@ export const ProfessionalDashboardPage = () => {
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [isClearingCache, setIsClearingCache] = useState(false);
+  const [cacheActionMessage, setCacheActionMessage] = useState('');
+  const [cacheActionStatus, setCacheActionStatus] = useState('info');
 
   useEffect(() => {
+    let isMounted = true;
+
+    const normalizeStats = (data) => ({
+      totalAnalyses: toSafeNumber(data?.totalAnalyses ?? data?.total_analyses, 0),
+      successfulAnalyses: toSafeNumber(data?.successfulAnalyses ?? data?.successful_analyses, 0),
+      failedAnalyses: toSafeNumber(data?.failedAnalyses ?? data?.failed_analyses, 0),
+      averageProcessingTime: toSafeNumber(data?.averageProcessingTime ?? data?.average_processing_time, 0),
+      cacheHitRate: toSafeNumber(data?.cacheHitRate ?? data?.cache_hit_rate, 0),
+      uptime: toSafeNumber(data?.uptime, 0),
+      redisConnected: Boolean(data?.redisConnected ?? data?.redis_connected),
+    });
     const fetchStats = async () => {
       try {
         const response = await fetch('/api/v1/stats');
+        if (!response.ok) {
+          const apiError = await extractErrorMessageFromResponse(
+            response,
+            `Unable to load statistics (${response.status}).`
+          );
+          throw new Error(apiError);
+        }
+
         const data = await response.json();
-        setStats(data);
-        setLoading(false);
+        if (!isMounted) return;
+
+        setStats(normalizeStats(data));
+        setError(null);
       } catch (err) {
-        setError('Failed to fetch statistics');
-        setLoading(false);
+        if (!isMounted) return;
+        setError(extractErrorMessage(err, 'Failed to load dashboard statistics.'));
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
       }
     };
 
     fetchStats();
     const interval = setInterval(fetchStats, 5000); // Update every 5 seconds
-    return () => clearInterval(interval);
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
   }, []);
 
+  const processingTrendData = useMemo(() => {
+    const baseline = Math.max(toSafeNumber(stats.averageProcessingTime, 0.8), 0.1);
+    return Array.from({ length: 12 }, (_, index) => {
+      const variance = (Math.sin(index + 1) + 1) * 0.15;
+      return {
+        time: `T-${11 - index}`,
+        value: Number((baseline + variance).toFixed(2)),
+      };
+    });
+  }, [stats.averageProcessingTime]);
+
+  const systemHealthStatus = stats.redisConnected ? 'healthy' : 'degraded';
+
+  const handleClearCache = async () => {
+    setIsClearingCache(true);
+    setCacheActionMessage('');
+    setCacheActionStatus('info');
+
+    try {
+      const response = await fetch('/api/v1/cache/clear', { method: 'POST' });
+      if (!response.ok) {
+        const apiError = await extractErrorMessageFromResponse(
+          response,
+          `Cache clear request failed (${response.status}).`
+        );
+        throw new Error(apiError);
+      }
+
+      await response.json().catch(() => null);
+      setCacheActionStatus('success');
+      setCacheActionMessage('Cache was cleared successfully.');
+      toast.success('Cache cleared successfully.');
+    } catch (err) {
+      const message = extractErrorMessage(err, 'Failed to clear cache.');
+      setCacheActionStatus('error');
+      setCacheActionMessage(message);
+      toast.error(message);
+    } finally {
+      setIsClearingCache(false);
+    }
+  };
+
   const getHealthColor = (status) => {
-    return status === 'healthy' ? 'text-green-600' : 'text-red-600';
+    if (status === 'healthy') return 'text-green-600';
+    if (status === 'degraded') return 'text-yellow-600';
+    return 'text-red-600';
   };
 
   const getCacheColor = (rate) => {
@@ -68,8 +145,15 @@ export const ProfessionalDashboardPage = () => {
   if (error) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-red-500 bg-red-50 p-8 rounded-lg">
-          Error: {error}
+        <div className="max-w-md text-center text-red-700 bg-red-50 border border-red-200 p-8 rounded-lg">
+          <p className="font-semibold mb-2">Unable to load dashboard statistics</p>
+          <p className="text-sm mb-4">{error}</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="inline-flex items-center rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 transition-colors"
+          >
+            Retry
+          </button>
         </div>
       </div>
     );
@@ -104,14 +188,16 @@ export const ProfessionalDashboardPage = () => {
               >
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-lg font-semibold text-gray-900">System Health</h3>
-                  <div className={`px-3 py-1 rounded-full text-xs font-medium ${getHealthColor('healthy')}`}>
+                  <div className={`px-3 py-1 rounded-full text-xs font-medium ${getHealthColor(systemHealthStatus)}`}>
                     {stats.redisConnected ? 'Connected' : 'Disconnected'}
                   </div>
                 </div>
                 <div className="space-y-2">
                   <div className="flex justify-between">
                     <span className="text-gray-600">Status:</span>
-                    <span className={`font-medium ${getHealthColor('healthy')}`}>Healthy</span>
+                    <span className={`font-medium ${getHealthColor(systemHealthStatus)}`}>
+                      {systemHealthStatus === 'healthy' ? 'Healthy' : 'Degraded'}
+                    </span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-600">Uptime:</span>
@@ -181,12 +267,7 @@ export const ProfessionalDashboardPage = () => {
               >
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">Processing Times</h3>
                 <ResponsiveContainer width="100%" height={200}>
-                  <LineChart data={[
-                    { name: 'Processing Time', data: Array(20).fill(null).map((_, i) => ({
-                      time: i,
-                      value: Math.random() * 2 + 0.5
-                    })) }
-                  ]}>
+                  <LineChart data={processingTrendData}>
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="time" />
                     <YAxis />
@@ -215,27 +296,33 @@ export const ProfessionalDashboardPage = () => {
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
                 className="flex-1 bg-purple-600 text-white py-3 px-6 rounded-lg font-medium hover:bg-purple-700 transition-colors"
-                onClick={() => window.open('/analysis', '_self')}
+                onClick={() => window.location.assign('/analysis')}
               >
                 New Analysis
               </motion.button>
               <motion.button
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                className="flex-1 bg-green-600 text-white py-3 px-6 rounded-lg font-medium hover:bg-green-700 transition-colors"
-                onClick={async () => {
-                  try {
-                    const response = await fetch('/api/v1/cache/clear', { method: 'POST' });
-                    const result = await response.json();
-                    alert('Cache cleared successfully!');
-                  } catch (err) {
-                    alert('Failed to clear cache');
-                  }
-                }}
+                whileHover={{ scale: isClearingCache ? 1 : 1.05 }}
+                whileTap={{ scale: isClearingCache ? 1 : 0.95 }}
+                className="flex-1 bg-green-600 text-white py-3 px-6 rounded-lg font-medium hover:bg-green-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
+                onClick={handleClearCache}
+                disabled={isClearingCache}
               >
-                Clear Cache
+                {isClearingCache ? 'Clearing Cache...' : 'Clear Cache'}
               </motion.button>
             </motion.div>
+            {cacheActionMessage && (
+              <div
+                className={`mt-4 rounded-lg px-4 py-3 text-sm ${
+                  cacheActionStatus === 'success'
+                    ? 'border border-green-200 bg-green-50 text-green-700'
+                    : cacheActionStatus === 'error'
+                      ? 'border border-red-200 bg-red-50 text-red-700'
+                      : 'border border-gray-200 bg-gray-50 text-gray-700'
+                }`}
+              >
+                {cacheActionMessage}
+              </div>
+            )}
           </div>
         </motion.div>
       </div>

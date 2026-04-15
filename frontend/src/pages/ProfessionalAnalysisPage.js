@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useAuthStore } from '../stores/authStore';
 import { LoadingSpinner } from '../components/LoadingSpinner';
 import { motion, AnimatePresence } from 'framer-motion';
+import toast from 'react-hot-toast';
+import { extractErrorMessageFromResponse, extractErrorMessage, toSafeNumber } from '../utils/http';
 
 export const ProfessionalAnalysisPage = () => {
   const { user } = useAuthStore();
@@ -9,9 +11,16 @@ export const ProfessionalAnalysisPage = () => {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [results, setResults] = useState(null);
   const [analysisProgress, setAnalysisProgress] = useState(0);
-  const [uploadedFiles, setUploadedFiles] = useState([]);
   const [selectedModel, setSelectedModel] = useState('ensemble');
   const [dragActive, setDragActive] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
+
+  const validateFile = (file) => {
+    if (!file) return 'Please select an image to analyze.';
+    if (!file.type?.startsWith('image/')) return 'Only image files are supported on this page.';
+    if (file.size > 10 * 1024 * 1024) return 'File is too large. Maximum image size is 10MB.';
+    return '';
+  };
 
   useEffect(() => {
     // Simulate real-time progress updates
@@ -25,9 +34,17 @@ export const ProfessionalAnalysisPage = () => {
   }, [isAnalyzing]);
 
   const handleFileSelect = (file) => {
+    const validationError = validateFile(file);
+    if (validationError) {
+      setSelectedFile(null);
+      setErrorMessage(validationError);
+      toast.error(validationError);
+      return;
+    }
     setSelectedFile(file);
     setResults(null);
     setAnalysisProgress(0);
+    setErrorMessage('');
   };
 
   const handleDragOver = (e) => {
@@ -40,7 +57,7 @@ export const ProfessionalAnalysisPage = () => {
     setDragActive(false);
   };
 
-  const handleDrop = ( (e) => {
+  const handleDrop = (e) => {
     e.preventDefault();
     setDragActive(false);
     const files = Array.from(e.dataTransfer.files);
@@ -50,10 +67,16 @@ export const ProfessionalAnalysisPage = () => {
   };
 
   const handleAnalyze = async () => {
-    if (!selectedFile) return;
+    const validationError = validateFile(selectedFile);
+    if (validationError) {
+      setErrorMessage(validationError);
+      toast.error(validationError);
+      return;
+    }
 
     setIsAnalyzing(true);
     setAnalysisProgress(0);
+    setErrorMessage('');
     
     try {
       const formData = new FormData();
@@ -64,26 +87,47 @@ export const ProfessionalAnalysisPage = () => {
         method: 'POST',
         body: formData,
       });
+
+      if (!response.ok) {
+        const apiError = await extractErrorMessageFromResponse(
+          response,
+          `Analysis request failed (${response.status}).`
+        );
+        throw new Error(apiError);
+      }
       
-      const result = await response.json();
-      setResults(result);
-      
-      // Add to uploaded files history
-      const newFile = {
-        id: Date.now(),
-        name: selectedFile.name,
-        size: selectedFile.size,
-        type: selectedFile.type,
-        timestamp: new Date().toISOString(),
-        result: result.result
-      };
-      setUploadedFiles(prev => [newFile, ...prev]);
+      const payload = await response.json();
+      const result = payload?.result ?? payload;
+
+      if (typeof result?.is_fake !== 'boolean' || Number.isNaN(Number(result?.confidence))) {
+        throw new Error('The server returned an unexpected analysis response.');
+      }
+
+      setResults({
+        ...payload,
+        result: {
+          ...result,
+          confidence: toSafeNumber(result.confidence, 0),
+          feature_count: toSafeNumber(result.feature_count, 0),
+          ensemble_models: Array.isArray(result.ensemble_models) ? result.ensemble_models : [],
+          model_version: result.model_version || 'N/A',
+        },
+        processing_time: toSafeNumber(payload?.processing_time, 0),
+        model_info: {
+          ...payload?.model_info,
+          model_used: payload?.model_info?.model_used || selectedModel,
+        },
+      });
+      setAnalysisProgress(100);
+      toast.success('Analysis completed successfully.');
       
     } catch (error) {
-      console.error('Analysis error:', error);
+      const message = extractErrorMessage(error, 'Unable to analyze this file right now.');
+      setErrorMessage(message);
+      setAnalysisProgress(0);
+      toast.error(message);
     } finally {
       setIsAnalyzing(false);
-      setAnalysisProgress(100);
     }
   };
 
@@ -172,6 +216,9 @@ export const ProfessionalAnalysisPage = () => {
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">
                   Upload File
                 </h3>
+                <p className="text-sm text-gray-500 mb-4">
+                  Upload an image file (JPG, PNG, or GIF), up to 10MB.
+                </p>
                 <div
                   className={`border-2 border-dashed rounded-lg p-8 text-center transition-all ${
                     dragActive ? 'border-purple-500 bg-purple-50' : 'border-gray-300 hover:border-gray-400'
@@ -245,6 +292,22 @@ export const ProfessionalAnalysisPage = () => {
                 )}
               </motion.div>
             </div>
+            <div className="mb-8 flex justify-center">
+              <motion.button
+                whileHover={{ scale: selectedFile && !isAnalyzing ? 1.03 : 1 }}
+                whileTap={{ scale: selectedFile && !isAnalyzing ? 0.97 : 1 }}
+                onClick={handleAnalyze}
+                disabled={!selectedFile || isAnalyzing}
+                className="inline-flex items-center px-6 py-3 bg-purple-600 text-white font-medium rounded-lg hover:bg-purple-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+              >
+                {isAnalyzing ? 'Running Analysis...' : 'Run Analysis'}
+              </motion.button>
+            </div>
+            {errorMessage && (
+              <div className="mb-8 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                {errorMessage}
+              </div>
+            )}
 
             {/* Results Section */}
             <AnimatePresence>
@@ -325,7 +388,7 @@ export const ProfessionalAnalysisPage = () => {
                         </div>
                       </div>
                     </div>
-                  </motion.div>
+                  </div>
                 </motion.div>
               )}
             </AnimatePresence>

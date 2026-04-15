@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Helmet } from 'react-helmet-async';
 import { useForm } from 'react-hook-form';
-import { Eye, EyeOff, Shield, AlertCircle, CheckCircle } from 'lucide-react';
+import { Eye, EyeOff, Shield, AlertCircle } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
 import toast from 'react-hot-toast';
 
@@ -280,11 +280,11 @@ export const RegisterPage = () => {
                   />
                   <label htmlFor="terms" className="ml-2 block text-sm text-gray-900 dark:text-gray-300">
                     I agree to the{' '}
-                    <a href="#" className="text-purple-600 hover:text-purple-500">
+                    <a href="/terms" className="text-purple-600 hover:text-purple-500">
                       Terms and Conditions
                     </a>{' '}
                     and{' '}
-                    <a href="#" className="text-purple-600 hover:text-purple-500">
+                    <a href="/privacy" className="text-purple-600 hover:text-purple-500">
                       Privacy Policy
                     </a>
                   </label>

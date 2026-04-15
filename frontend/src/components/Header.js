@@ -3,6 +3,7 @@ import { Bell, Search, User, ChevronDown, Sun, Moon } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
 
 export const Header = ({ user }) => {
+  const { logout } = useAuthStore();
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const [theme, setTheme] = useState('light');
@@ -123,7 +124,7 @@ export const Header = ({ user }) => {
                     </a>
                     <hr className="my-1 border-gray-200 dark:border-gray-700" />
                     <button
-                      onClick={() => useAuthStore().logout()}
+                      onClick={logout}
                       className="block w-full text-left px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-700"
                     >
                       Sign out
