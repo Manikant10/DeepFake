@@ -9,3 +9,4 @@ passlib[bcrypt]
 email-validator
 prometheus-client
 structlog
+gunicorn
